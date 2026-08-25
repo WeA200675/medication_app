@@ -1,0 +1,45 @@
+name: medication_app
+description: "Eine Flutter-App zur Verwaltung von Medikationsplänen, Dokumenten und Arztterminen."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  shared_preferences: ^2.2.2
+
+  # Datenbank & Datei-Speicher
+  sqflite: ^2.3.2
+  path: ^1.9.0
+  path_provider: ^2.1.2
+
+  # Benachrichtigungen (Zurück auf v17)
+  flutter_local_notifications: ^17.0.0
+  timezone: ^0.9.2
+
+  # PDF & Drucken
+  pdf: ^3.10.8
+  printing: ^5.13.0
+
+  # Backup, Import & Web-Links (Zurück auf v8, share_plus auf v10)
+  file_picker: ^8.0.0
+  share_plus: ^10.0.0
+  http: ^1.2.0
+  url_launcher: ^6.3.2
+
+  # OCR & Kamera/Dokumenten-Scan
+  google_mlkit_text_recognition: ^0.13.0
+  image_picker: ^1.1.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
