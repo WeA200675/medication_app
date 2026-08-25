@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class EmailTemplate {
   final String id;
@@ -99,6 +100,36 @@ class _DoctorEmailDialogState extends State<DoctorEmailDialog> {
       _subjectController.text = template.subject;
       _bodyController.text = template.body;
     });
+  }
+
+  Future<void> _sendEmail() async {
+    final Uri mailUri = Uri(
+      scheme: 'mailto',
+      path: widget.doctorEmail,
+      queryParameters: {
+        'subject': _subjectController.text,
+        'body': _bodyController.text,
+      },
+    );
+
+    try {
+      if (await canLaunchUrl(mailUri)) {
+        await launchUrl(mailUri);
+        if (mounted) Navigator.pop(context);
+      } else {
+        _showErrorSnackBar('Keine Standard-Mail-App gefunden.');
+      }
+    } catch (e) {
+      _showErrorSnackBar('Fehler beim Öffnen der Mail-App.');
+    }
+  }
+
+  void _showErrorSnackBar(String message) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
+      );
+    }
   }
 
   @override
@@ -224,13 +255,7 @@ class _DoctorEmailDialogState extends State<DoctorEmailDialog> {
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                     ),
-                    onPressed: () {
-                      // Hier kann z. B. url_launcher mit mailto: aufgerufen werden
-                      Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('E-Mail-Entwurf bereitgestellt.')),
-                      );
-                    },
+                    onPressed: _sendEmail,
                     icon: const Icon(Icons.send),
                     label: const Text('Senden'),
                   ),

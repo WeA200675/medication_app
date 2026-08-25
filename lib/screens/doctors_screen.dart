@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/doctor.dart';
+import '../services/doctor_api_service.dart';
 
 class DoctorsScreen extends StatefulWidget {
   const DoctorsScreen({super.key});
@@ -12,6 +13,42 @@ class DoctorsScreen extends StatefulWidget {
 class _DoctorsScreenState extends State<DoctorsScreen> {
   bool _isGridView = true;
   final List<Doctor> _doctors = [];
+  
+  // Controller und Suchbegriff für die Filterung
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _searchController.addListener(_onSearchChanged);
+  }
+
+  @override
+  void dispose() {
+    _searchController.removeListener(_onSearchChanged);
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _onSearchChanged() {
+    setState(() {
+      _searchQuery = _searchController.text.toLowerCase();
+    });
+  }
+
+  // Gibt die gefilterte Liste basierend auf dem Suchbegriff zurück
+  List<Doctor> get _filteredDoctors {
+    if (_searchQuery.isEmpty) {
+      return _doctors;
+    }
+    return _doctors.where((doc) {
+      final nameMatches = doc.name.toLowerCase().contains(_searchQuery);
+      final specialtyMatches = doc.specialty.toLowerCase().contains(_searchQuery);
+      final addressMatches = doc.address.toLowerCase().contains(_searchQuery);
+      return nameMatches || specialtyMatches || addressMatches;
+    }).toList();
+  }
 
   // Hilfsfunktionen für Anrufe, E-Mails und Webseiten
   Future<void> _makePhoneCall(String phoneNumber) async {
@@ -20,20 +57,71 @@ class _DoctorsScreenState extends State<DoctorsScreen> {
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri);
     } else if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Konnte $phoneNumber nicht anrufen.')),
-      );
+      _showSnackBar('Konnte $phoneNumber nicht anrufen.');
     }
   }
 
+  // Vordefinierte E-Mail-Vorlagen
+  final List<Map<String, String>> _emailTemplates = [
+    {
+      'title': 'Allgemeine Anfrage',
+      'subject': 'Anfrage / Anliegen',
+      'body': 'Sehr geehrte Damen und Herren,\n\nich wende mich mit folgendem Anliegen an Ihre Praxis:\n\n[Bitte Text hier eingeben]\n\nMit freundlichen Grüßen,\n[Dein Name]'
+    },
+    {
+      'title': 'Terminwunsch',
+      'subject': 'Terminwunsch',
+      'body': 'Sehr geehrte Damen und Herren,\n\nich möchte gerne einen Termin in Ihrer Praxis vereinbaren.\n\n[Wunschtermin / Uhrzeit angeben]\n\nMit freundlichen Grüßen,\n[Dein Name]'
+    },
+    {
+      'title': 'Rezeptbestellung',
+      'subject': 'Wiederholungsrezept',
+      'body': 'Sehr geehrte Damen und Herren,\n\nich benötige ein Folgerezept für folgendes Medikament:\n\n[Medikamentenname / Dosierung]\n\nMit freundlichen Grüßen,\n[Dein Name]'
+    },
+  ];
+
+  // Geänderte E-Mail-Funktion mit Vorlagen-Auswahl
   Future<void> _sendEmail(String email) async {
-    final uri = Uri.parse('mailto:$email');
+    // Dialog anzeigen, um eine Vorlage auszuwählen
+    final selectedTemplate = await showDialog<Map<String, String>>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('E-Mail Vorlage wählen'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ListView.builder(
+            shrinkWrap: true,
+            itemCount: _emailTemplates.length,
+            itemBuilder: (context, index) {
+              final template = _emailTemplates[index];
+              return ListTile(
+                title: Text(template['title']!, style: const TextStyle(fontWeight: FontWeight.bold)),
+                subtitle: Text(template['subject']!, maxLines: 1, overflow: TextOverflow.ellipsis),
+                onTap: () => Navigator.of(context).pop(template),
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Abbrechen'),
+          ),
+        ],
+      ),
+    );
+
+    // Wenn der Nutzer abgebrochen hat, abbrechen
+    if (selectedTemplate == null) return;
+
+    final subject = Uri.encodeComponent(selectedTemplate['subject']!);
+    final body = Uri.encodeComponent(selectedTemplate['body']!);
+    final uri = Uri.parse('mailto:$email?subject=$subject&body=$body');
+
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri);
     } else if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Konnte E-Mail-App für $email nicht öffnen.')),
-      );
+      _showSnackBar('Konnte E-Mail-App für $email nicht öffnen.');
     }
   }
 
@@ -46,220 +134,33 @@ class _DoctorsScreenState extends State<DoctorsScreen> {
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     } else if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Konnte URL $urlString nicht öffnen.')),
-      );
+      _showSnackBar('Konnte URL $urlString nicht öffnen.');
     }
   }
 
-  // Simulation / Anbindung für die automatische Arztsuche
-  Future<Map<String, String>?> _autoSearchDoctor(String name, String city) async {
-    // Hier kann die Anbindung an die Google Places API oder ein Backend erfolgen.
-    await Future.delayed(const Duration(seconds: 2)); // Simuliert Netzwerkanfrage
-
-    if (name.isEmpty) return null;
-
-    // Beispiel-Ergebnis zur Veranschaulichung der automatischen Befüllung:
-    return {
-      'specialty': 'Allgemeinmedizin',
-      'address': city.isNotEmpty ? 'Musterstraße 12, $city' : 'Musterstraße 12',
-      'phone': '+49 89 1234567',
-      'email': 'praxis@beispiel-arzt.de',
-      'openingHours': 'Mo-Fr 08:00 - 12:00 Uhr',
-      'appointmentUrl': 'https://www.doctolib.de',
-    };
+  void _showSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
   }
 
   void _addDoctor(Doctor doctor) {
-    setState(() {
-      _doctors.add(doctor);
-    });
+    setState(() => _doctors.add(doctor));
   }
 
   void _deleteDoctor(int id) {
-    setState(() {
-      _doctors.removeWhere((doc) => doc.id == id);
-    });
+    setState(() => _doctors.removeWhere((doc) => doc.id == id));
   }
 
   void _showAddDoctorDialog() {
-    final formKey = GlobalKey<FormState>();
-    final nameController = TextEditingController();
-    final cityController = TextEditingController();
-    final specialtyController = TextEditingController();
-    final addressController = TextEditingController();
-    final phoneController = TextEditingController();
-    final emailController = TextEditingController();
-    final openingHoursController = TextEditingController();
-    final appointmentUrlController = TextEditingController();
-
-    bool isSearching = false;
-
     showDialog(
       context: context,
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              title: const Text('Neuen Arzt hinzufügen'),
-              content: SingleChildScrollView(
-                child: Form(
-                  key: formKey,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      TextFormField(
-                        controller: nameController,
-                        decoration: const InputDecoration(
-                          labelText: 'Name / Praxis *',
-                          icon: Icon(Icons.person),
-                        ),
-                        validator: (val) {
-                          if (val == null || val.trim().isEmpty) {
-                            return 'Bitte geben Sie einen Namen ein';
-                          }
-                          return null;
-                        },
-                      ),
-                      TextFormField(
-                        controller: cityController,
-                        decoration: const InputDecoration(
-                          labelText: 'Ort / Stadt',
-                          icon: Icon(Icons.location_city),
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.teal,
-                          foregroundColor: Colors.white,
-                          minimumSize: const Size.fromHeight(40),
-                        ),
-                        onPressed: isSearching
-                            ? null
-                            : () async {
-                                final name = nameController.text.trim();
-                                final city = cityController.text.trim();
-
-                                if (name.isEmpty) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text('Bitte zuerst Praxis/Name eingeben.'),
-                                    ),
-                                  );
-                                  return;
-                                }
-
-                                setDialogState(() => isSearching = true);
-
-                                final data = await _autoSearchDoctor(name, city);
-
-                                setDialogState(() {
-                                  isSearching = false;
-                                  if (data != null) {
-                                    specialtyController.text = data['specialty'] ?? '';
-                                    addressController.text = data['address'] ?? '';
-                                    phoneController.text = data['phone'] ?? '';
-                                    emailController.text = data['email'] ?? '';
-                                    openingHoursController.text = data['openingHours'] ?? '';
-                                    appointmentUrlController.text = data['appointmentUrl'] ?? '';
-                                  }
-                                });
-                              },
-                        icon: isSearching
-                            ? const SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white,
-                                ),
-                              )
-                            : const Icon(Icons.search),
-                        label: Text(isSearching ? 'Suche läuft...' : 'Daten automatisch suchen'),
-                      ),
-                      const Divider(height: 24),
-                      TextFormField(
-                        controller: specialtyController,
-                        decoration: const InputDecoration(
-                          labelText: 'Fachrichtung',
-                          icon: Icon(Icons.medical_services),
-                        ),
-                      ),
-                      TextFormField(
-                        controller: addressController,
-                        decoration: const InputDecoration(
-                          labelText: 'Adresse',
-                          icon: Icon(Icons.location_on),
-                        ),
-                      ),
-                      TextFormField(
-                        controller: phoneController,
-                        decoration: const InputDecoration(
-                          labelText: 'Telefonnummer',
-                          icon: Icon(Icons.phone),
-                        ),
-                        keyboardType: TextInputType.phone,
-                      ),
-                      TextFormField(
-                        controller: emailController,
-                        decoration: const InputDecoration(
-                          labelText: 'E-Mail',
-                          icon: Icon(Icons.email),
-                        ),
-                        keyboardType: TextInputType.emailAddress,
-                      ),
-                      TextFormField(
-                        controller: openingHoursController,
-                        decoration: const InputDecoration(
-                          labelText: 'Öffnungszeiten',
-                          icon: Icon(Icons.access_time),
-                        ),
-                      ),
-                      TextFormField(
-                        controller: appointmentUrlController,
-                        decoration: const InputDecoration(
-                          labelText: 'Online-Termin URL',
-                          icon: Icon(Icons.link),
-                        ),
-                        keyboardType: TextInputType.url,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(ctx).pop(),
-                  child: const Text('Abbrechen'),
-                ),
-                ElevatedButton(
-                  onPressed: () {
-                    if (formKey.currentState!.validate()) {
-                      final newDoctor = Doctor(
-                        id: DateTime.now().millisecondsSinceEpoch,
-                        name: nameController.text.trim(),
-                        specialty: specialtyController.text.trim(),
-                        address: addressController.text.trim(),
-                        phone: phoneController.text.trim(),
-                        email: emailController.text.trim(),
-                        openingHours: openingHoursController.text.trim(),
-                        appointmentUrl: appointmentUrlController.text.trim().isEmpty
-                            ? null
-                            : appointmentUrlController.text.trim(),
-                      );
-                      _addDoctor(newDoctor);
-                      Navigator.of(ctx).pop();
-                    }
-                  },
-                  child: const Text('Speichern'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
+      builder: (ctx) => const _AddDoctorDialog(),
+    ).then((newDoctor) {
+      if (newDoctor != null && newDoctor is Doctor) {
+        _addDoctor(newDoctor);
+      }
+    });
   }
 
   void _confirmDelete(Doctor doctor) {
@@ -289,6 +190,8 @@ class _DoctorsScreenState extends State<DoctorsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final displayedDoctors = _filteredDoctors;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Ärzte & Kontakte'),
@@ -297,24 +200,60 @@ class _DoctorsScreenState extends State<DoctorsScreen> {
           IconButton(
             icon: Icon(_isGridView ? Icons.view_list : Icons.grid_view),
             tooltip: _isGridView ? 'Zur Listenansicht' : 'Zur Visitenkartenansicht',
-            onPressed: () {
-              setState(() {
-                _isGridView = !_isGridView;
-              });
-            },
+            onPressed: () => setState(() => _isGridView = !_isGridView),
           ),
         ],
       ),
-      body: _doctors.isEmpty
-          ? const Center(
-              child: Text(
-                'Keine Ärzte eingetragen.',
-                style: TextStyle(fontSize: 18, color: Colors.grey),
+      body: Column(
+        children: [
+          // Suchleiste oben
+          Padding(
+            padding: const EdgeInsets.all(12.0),
+            child: TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                labelText: 'Arzt, Fachrichtung oder Ort suchen...',
+                prefixIcon: const Icon(Icons.search, color: Colors.teal),
+                suffixIcon: _searchQuery.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear),
+                        onPressed: () => _searchController.clear(),
+                      )
+                    : null,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.teal.shade200),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: Colors.teal, width: 2),
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               ),
-            )
-          : _isGridView
-              ? _buildBusinessCardGrid()
-              : _buildListView(),
+            ),
+          ),
+          // Inhaltsbereich (Grid, Liste oder Leer-Zustand)
+          Expanded(
+            child: _doctors.isEmpty
+                ? const Center(
+                    child: Text(
+                      'Keine Ärzte eingetragen.',
+                      style: TextStyle(fontSize: 18, color: Colors.grey),
+                    ),
+                  )
+                : displayedDoctors.isEmpty
+                    ? const Center(
+                        child: Text(
+                          'Keine passenden Ärzte gefunden.',
+                          style: TextStyle(fontSize: 16, color: Colors.grey),
+                        ),
+                      )
+                    : _isGridView
+                        ? _buildBusinessCardGrid(displayedDoctors)
+                        : _buildListView(displayedDoctors),
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _showAddDoctorDialog,
         backgroundColor: Colors.teal,
@@ -324,17 +263,18 @@ class _DoctorsScreenState extends State<DoctorsScreen> {
     );
   }
 
-  Widget _buildBusinessCardGrid() {
+  Widget _buildBusinessCardGrid(List<Doctor> doctorsToDisplay) {
     return GridView.builder(
-      padding: const EdgeInsets.all(12),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 1,
-        mainAxisExtent: 220,
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: 400,
+        mainAxisExtent: 230,
+        crossAxisSpacing: 12,
         mainAxisSpacing: 12,
       ),
-      itemCount: _doctors.length,
+      itemCount: doctorsToDisplay.length,
       itemBuilder: (ctx, index) {
-        final doc = _doctors[index];
+        final doc = doctorsToDisplay[index];
         return Card(
           elevation: 4,
           shape: RoundedRectangleBorder(
@@ -374,6 +314,8 @@ class _DoctorsScreenState extends State<DoctorsScreen> {
                               fontWeight: FontWeight.bold,
                               color: Colors.black87,
                             ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                           const SizedBox(height: 2),
                           if (doc.specialty.isNotEmpty)
@@ -417,7 +359,7 @@ class _DoctorsScreenState extends State<DoctorsScreen> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 4),
                 ],
                 if (doc.openingHours.isNotEmpty) ...[
                   Row(
@@ -433,7 +375,6 @@ class _DoctorsScreenState extends State<DoctorsScreen> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 6),
                 ],
                 const Spacer(),
                 Row(
@@ -478,12 +419,12 @@ class _DoctorsScreenState extends State<DoctorsScreen> {
     );
   }
 
-  Widget _buildListView() {
+  Widget _buildListView(List<Doctor> doctorsToDisplay) {
     return ListView.builder(
-      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-      itemCount: _doctors.length,
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+      itemCount: doctorsToDisplay.length,
       itemBuilder: (ctx, index) {
-        final doc = _doctors[index];
+        final doc = doctorsToDisplay[index];
         return Card(
           elevation: 2,
           margin: const EdgeInsets.symmetric(vertical: 6),
@@ -543,6 +484,200 @@ class _DoctorsScreenState extends State<DoctorsScreen> {
           ),
         );
       },
+    );
+  }
+}
+
+// Ausgelagertes Stateful Widget für den Dialog zur Vermeidung von State-Lecks und Controller-Problemen
+class _AddDoctorDialog extends StatefulWidget {
+  const _AddDoctorDialog();
+
+  @override
+  State<_AddDoctorDialog> createState() => _AddDoctorDialogState();
+}
+
+class _AddDoctorDialogState extends State<_AddDoctorDialog> {
+  final _formKey = GlobalKey<FormState>();
+  final _nameController = TextEditingController();
+  final _cityController = TextEditingController();
+  final _specialtyController = TextEditingController();
+  final _addressController = TextEditingController();
+  final _phoneController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _openingHoursController = TextEditingController();
+  final _appointmentUrlController = TextEditingController();
+
+  bool _isSearching = false;
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _cityController.dispose();
+    _specialtyController.dispose();
+    _addressController.dispose();
+    _phoneController.dispose();
+    _emailController.dispose();
+    _openingHoursController.dispose();
+    _appointmentUrlController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _performAutoSearch() async {
+    final name = _nameController.text.trim();
+    final city = _cityController.text.trim();
+
+    if (name.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Bitte zuerst Praxis/Name eingeben.')),
+      );
+      return;
+    }
+
+    setState(() => _isSearching = true);
+
+    try {
+      final List<Doctor> results = await DoctorApiService.searchDoctors('$name $city'.trim());
+      if (results.isNotEmpty && mounted) {
+        final doc = results.first;
+        setState(() {
+          _specialtyController.text = doc.specialty;
+          _addressController.text = doc.address;
+          _phoneController.text = doc.phone;
+          _emailController.text = doc.email;
+          _openingHoursController.text = doc.openingHours;
+          _appointmentUrlController.text = doc.appointmentUrl ?? '';
+        });
+      }
+    } catch (e) {
+      debugPrint('Fehler bei automatischer Suche: $e');
+    } finally {
+      if (mounted) setState(() => _isSearching = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Neuen Arzt hinzufügen'),
+      content: SingleChildScrollView(
+        child: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextFormField(
+                controller: _nameController,
+                decoration: const InputDecoration(
+                  labelText: 'Name / Praxis *',
+                  icon: Icon(Icons.person),
+                ),
+                validator: (val) => val == null || val.trim().isEmpty
+                    ? 'Bitte geben Sie einen Namen ein'
+                    : null,
+              ),
+              TextFormField(
+                controller: _cityController,
+                decoration: const InputDecoration(
+                  labelText: 'Ort / Stadt',
+                  icon: Icon(Icons.location_city),
+                ),
+              ),
+              const SizedBox(height: 10),
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.teal,
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size.fromHeight(40),
+                ),
+                onPressed: _isSearching ? null : _performAutoSearch,
+                icon: _isSearching
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Icon(Icons.search),
+                label: Text(_isSearching ? 'Suche läuft...' : 'Daten automatisch suchen'),
+              ),
+              const Divider(height: 24),
+              TextFormField(
+                controller: _specialtyController,
+                decoration: const InputDecoration(
+                  labelText: 'Fachrichtung',
+                  icon: Icon(Icons.medical_services),
+                ),
+              ),
+              TextFormField(
+                controller: _addressController,
+                decoration: const InputDecoration(
+                  labelText: 'Adresse',
+                  icon: Icon(Icons.location_on),
+                ),
+              ),
+              TextFormField(
+                controller: _phoneController,
+                decoration: const InputDecoration(
+                  labelText: 'Telefonnummer',
+                  icon: Icon(Icons.phone),
+                ),
+                keyboardType: TextInputType.phone,
+              ),
+              TextFormField(
+                controller: _emailController,
+                decoration: const InputDecoration(
+                  labelText: 'E-Mail',
+                  icon: Icon(Icons.email),
+                ),
+                keyboardType: TextInputType.emailAddress,
+              ),
+              TextFormField(
+                controller: _openingHoursController,
+                decoration: const InputDecoration(
+                  labelText: 'Öffnungszeiten',
+                  icon: Icon(Icons.access_time),
+                ),
+              ),
+              TextFormField(
+                controller: _appointmentUrlController,
+                decoration: const InputDecoration(
+                  labelText: 'Online-Termin URL',
+                  icon: Icon(Icons.link),
+                ),
+                keyboardType: TextInputType.url,
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Abbrechen'),
+        ),
+        ElevatedButton(
+          onPressed: () {
+            if (_formKey.currentState!.validate()) {
+              final newDoctor = Doctor(
+                id: DateTime.now().millisecondsSinceEpoch,
+                name: _nameController.text.trim(),
+                specialty: _specialtyController.text.trim(),
+                address: _addressController.text.trim(),
+                phone: _phoneController.text.trim(),
+                email: _emailController.text.trim(),
+                openingHours: _openingHoursController.text.trim(),
+                appointmentUrl: _appointmentUrlController.text.trim().isEmpty
+                    ? null
+                    : _appointmentUrlController.text.trim(),
+              );
+              Navigator.of(context).pop(newDoctor);
+            }
+          },
+          child: const Text('Speichern'),
+        ),
+      ],
     );
   }
 }

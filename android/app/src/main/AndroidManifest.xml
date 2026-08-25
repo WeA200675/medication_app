@@ -1,5 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- WICHTIG: Erforderlich für jegliche Netzwerk- und API-Abfragen -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <!-- Berechtigungen für Kamera (Text-Erkennung / ML Kit) -->
     <uses-permission android:name="android.permission.CAMERA" />
 
@@ -54,6 +57,13 @@
     </application>
 
     <queries>
+        <!-- Hinzugefügt: Erlaubt das Erkennen von E-Mail-Apps für mailto:-Links -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="mailto" />
+        </intent>
+
+        <!-- Standard-Eintrag von Flutter -->
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>

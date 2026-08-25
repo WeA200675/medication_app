@@ -53,7 +53,6 @@ class Doctor {
     );
   }
 
-  // Optional: Nützlich beim Bearbeiten von Einträgen
   Doctor copyWith({
     int? id,
     String? name,
