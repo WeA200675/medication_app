@@ -350,13 +350,41 @@ class _DoctorLettersScreenState extends State<DoctorLettersScreen> {
   // ============================================================
   // Dokument bearbeiten
   // ============================================================
-  
+
   Future<void> _editDocument(
     MedicalDocument document,
   ) async {
     if (document.id == null) {
       return;
     }
+    String _doctorDisplayName(Doctor doctor) {
+      final name = doctor.name.trim();
+      final specialty = doctor.specialty.trim();
+
+      if (name.isEmpty && specialty.isEmpty) {
+        return 'Unbekannter Arzt';
+      }
+
+      if (specialty.isEmpty) {
+        return name;
+      }
+
+      if (name.isEmpty) {
+        return specialty;
+      }
+
+      return '$name – $specialty';
+    }
+
+  final doctors =
+      await _databaseService.getDoctors();
+
+    String editedTitle = document.title;
+    String editedOcrText = document.ocrText;
+    String selectedCategory = document.category;
+    DateTime selectedDate = document.issueDate;
+
+    int? selectedDoctorId = document.doctorId;
 
     String editedTitle = document.title;
     String editedOcrText = document.ocrText;
@@ -445,6 +473,45 @@ class _DoctorLettersScreenState extends State<DoctorLettersScreen> {
 
                     const SizedBox(height: 16),
 
+                    // ------------------------------------------------
+                    // Arzt / Praxis
+                    // ------------------------------------------------
+
+                    DropdownButtonFormField<int?>(
+                      initialValue: selectedDoctorId,
+                      decoration: const InputDecoration(
+                        labelText: 'Arzt / Praxis',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.medical_services),
+                      ),
+                      items: [
+                        const DropdownMenuItem<int?>(
+                          value: null,
+                          child: Text(
+                            'Keine Zuordnung',
+                          ),
+                        ),
+
+                        ...doctors.map(
+                          (doctor) {
+                            return DropdownMenuItem<int?>(
+                              value: doctor.id,
+                              child: Text(
+                                _doctorDisplayName(doctor),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            );
+                          },
+                        ),
+                      ],
+                      onChanged: (value) {
+                        setDialogState(() {
+                          selectedDoctorId = value;
+                        });
+                      },
+                    ),
+
+                    const SizedBox(height: 16),
                     // ------------------------------------------------
                     // Dokumentdatum
                     // ------------------------------------------------

@@ -41,6 +41,9 @@ class MedicalDocument {
 
   /// Zeitpunkt der letzten Änderung.
   final DateTime updatedAt;
+  
+  static const Object _keepDoctorId =
+      Object();
 
   MedicalDocument({
     this.id,
@@ -102,11 +105,18 @@ class MedicalDocument {
   /// - Titel ändern
   /// - Dokumenttyp ändern
   /// - Datum korrigieren
+    /// Erstellt eine Kopie des Dokuments mit geänderten Werten.
+  ///
+  /// Für doctorId wird bewusst zwischen
+  /// "nicht ändern" und "auf null setzen" unterschieden.
+  ///
+  /// Dadurch kann eine bestehende Arztzuordnung
+  /// im Bearbeitungsdialog auch wieder entfernt werden.
   MedicalDocument copyWith({
     int? id,
     String? title,
     String? category,
-    int? doctorId,
+    Object? doctorId = _keepDoctorId,
     DateTime? issueDate,
     String? originalFilePath,
     String? ocrText,
@@ -117,9 +127,12 @@ class MedicalDocument {
       id: id ?? this.id,
       title: title ?? this.title,
       category: category ?? this.category,
-      doctorId: doctorId ?? this.doctorId,
+      doctorId: identical(doctorId, _keepDoctorId)
+          ? this.doctorId
+          : doctorId as int?,
       issueDate: issueDate ?? this.issueDate,
-      originalFilePath: originalFilePath ?? this.originalFilePath,
+      originalFilePath:
+          originalFilePath ?? this.originalFilePath,
       ocrText: ocrText ?? this.ocrText,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
