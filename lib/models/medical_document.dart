@@ -1,34 +1,170 @@
 class MedicalDocument {
   final int? id;
-  final String doctorOrPractice; // Ersteller des Briefes / Praxis
-  final DateTime issueDate;       // Ausstelldatum
-  final String category;         // z. B. "Arztbrief" oder "Diagnose"
-  final String previewText;       // Kurze Vorschau des Inhalts
-  final String? filePath;        // Pfad zur abgespeicherten Datei
+
+  /// Anzeigename des Dokuments.
+  ///
+  /// Beispiel:
+  /// "Arztbrief vom 15.08.2026"
+  final String title;
+
+  /// Dokumenttyp.
+  ///
+  /// Beispiele:
+  /// "Arztbrief", "Diagnose", "Befund", "Entlassbrief"
+  final String category;
+
+  /// ID des zugehörigen Arztes aus der doctors-Tabelle.
+  ///
+  /// Kann null sein, wenn beim Scannen noch kein Arzt
+  /// eindeutig zugeordnet werden konnte.
+  final int? doctorId;
+
+  /// Ausstelldatum des Dokuments.
+  final DateTime issueDate;
+
+  /// Pfad zur ORIGINALDATEI.
+  ///
+  /// Das ist das tatsächlich fotografierte bzw. gescannte
+  /// Dokument. Dieser Inhalt darf niemals durch OCR ersetzt
+  /// oder überschrieben werden.
+  final String? originalFilePath;
+
+  /// Von OCR erkannter Text.
+  ///
+  /// OCR ist lediglich eine Zusatzinformation.
+  /// Auch bei fehlerhafter OCR bleibt das Originaldokument
+  /// vollständig erhalten.
+  final String ocrText;
+
+  /// Zeitpunkt, zu dem das Dokument in der App angelegt wurde.
+  final DateTime createdAt;
+
+  /// Zeitpunkt der letzten Änderung.
+  final DateTime updatedAt;
 
   MedicalDocument({
     this.id,
-    required this.doctorOrPractice,
-    required this.issueDate,
+    required this.title,
     required this.category,
-    required this.previewText,
-    this.filePath,
-  });
+    this.doctorId,
+    required this.issueDate,
+    this.originalFilePath,
+    this.ocrText = '',
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  })  : createdAt = createdAt ?? DateTime.now(),
+        updatedAt = updatedAt ?? DateTime.now();
 
-  /// Generiert den Dateinamen aus Ersteller + Ausstelldatum
-  /// Beispiel: "Arztbrief_Dr_Med_Mueller_2026-08-15.pdf"
+  /// Erstellt ein Dokument aus einem SQLite-Datensatz.
+  factory MedicalDocument.fromMap(Map<String, dynamic> map) {
+    return MedicalDocument(
+      id: map['id'] as int?,
+      title: map['title'] as String? ?? 'Dokument',
+      category: map['category'] as String? ?? 'Dokument',
+      doctorId: map['doctorId'] as int?,
+      issueDate: DateTime.tryParse(
+            map['issueDate'] as String? ?? '',
+          ) ??
+          DateTime.now(),
+      originalFilePath: map['originalFilePath'] as String?,
+      ocrText: map['ocrText'] as String? ?? '',
+      createdAt: DateTime.tryParse(
+            map['createdAt'] as String? ?? '',
+          ) ??
+          DateTime.now(),
+      updatedAt: DateTime.tryParse(
+            map['updatedAt'] as String? ?? '',
+          ) ??
+          DateTime.now(),
+    );
+  }
+
+  /// Wandelt das Dokument in einen SQLite-kompatiblen Datensatz um.
+  Map<String, dynamic> toMap() {
+    return {
+      if (id != null) 'id': id,
+      'title': title,
+      'category': category,
+      'doctorId': doctorId,
+      'issueDate': issueDate.toIso8601String(),
+      'originalFilePath': originalFilePath,
+      'ocrText': ocrText,
+      'createdAt': createdAt.toIso8601String(),
+      'updatedAt': updatedAt.toIso8601String(),
+    };
+  }
+
+  /// Erstellt eine Kopie des Dokuments mit geänderten Werten.
+  ///
+  /// Das brauchen wir später für:
+  /// - Dokument bearbeiten
+  /// - Arzt zuordnen
+  /// - Titel ändern
+  /// - Dokumenttyp ändern
+  /// - Datum korrigieren
+  MedicalDocument copyWith({
+    int? id,
+    String? title,
+    String? category,
+    int? doctorId,
+    DateTime? issueDate,
+    String? originalFilePath,
+    String? ocrText,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) {
+    return MedicalDocument(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      category: category ?? this.category,
+      doctorId: doctorId ?? this.doctorId,
+      issueDate: issueDate ?? this.issueDate,
+      originalFilePath: originalFilePath ?? this.originalFilePath,
+      ocrText: ocrText ?? this.ocrText,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
+
+  /// Dateiname für die gespeicherte Originaldatei.
+  ///
+  /// Der Dateiname dient nur zur Orientierung.
+  /// Der tatsächliche Pfad wird in originalFilePath gespeichert.
   String get fileName {
     final formattedDate =
-        "${issueDate.year}-${issueDate.month.toString().padLeft(2, '0')}-${issueDate.day.toString().padLeft(2, '0')}";
-    final sanitizedDoctor = doctorOrPractice
+        '${issueDate.year}-'
+        '${issueDate.month.toString().padLeft(2, '0')}-'
+        '${issueDate.day.toString().padLeft(2, '0')}';
+
+    final sanitizedTitle = title
         .replaceAll(RegExp(r'[^\w\s\-]'), '')
         .trim()
         .replaceAll(RegExp(r'\s+'), '_');
-    return "${category}_${sanitizedDoctor}_$formattedDate.pdf";
+
+    final safeTitle =
+        sanitizedTitle.isEmpty ? 'Dokument' : sanitizedTitle;
+
+    return '${safeTitle}_$formattedDate';
   }
 
-  /// Formatiertes Ausstelldatum für die Anzeige (z. B. 15.08.2026)
+  /// Formatiertes Ausstelldatum für die Anzeige.
+  ///
+  /// Beispiel:
+  /// 15.08.2026
   String get formattedIssueDate {
-    return "${issueDate.day.toString().padLeft(2, '0')}.${issueDate.month.toString().padLeft(2, '0')}.${issueDate.year}";
+    return '${issueDate.day.toString().padLeft(2, '0')}.'
+        '${issueDate.month.toString().padLeft(2, '0')}.'
+        '${issueDate.year}';
+  }
+
+  /// Gibt an, ob tatsächlich eine Originaldatei vorhanden ist.
+  bool get hasOriginalFile {
+    return originalFilePath != null &&
+        originalFilePath!.trim().isNotEmpty;
+  }
+
+  /// Gibt an, ob OCR-Text vorhanden ist.
+  bool get hasOcrText {
+    return ocrText.trim().isNotEmpty;
   }
 }
