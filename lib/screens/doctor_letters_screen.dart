@@ -357,7 +357,7 @@ class _DoctorLettersScreenState extends State<DoctorLettersScreen> {
     if (document.id == null) {
       return;
     }
-    String _doctorDisplayName(Doctor doctor) {
+    String doctorDisplayName(Doctor doctor) {
       final name = doctor.name.trim();
       final specialty = doctor.specialty.trim();
 
@@ -383,13 +383,7 @@ class _DoctorLettersScreenState extends State<DoctorLettersScreen> {
     String editedOcrText = document.ocrText;
     String selectedCategory = document.category;
     DateTime selectedDate = document.issueDate;
-
     int? selectedDoctorId = document.doctorId;
-
-    String editedTitle = document.title;
-    String editedOcrText = document.ocrText;
-    String selectedCategory = document.category;
-    DateTime selectedDate = document.issueDate;
 
     final categories = <String>[
       'Arztbrief',
@@ -403,6 +397,7 @@ class _DoctorLettersScreenState extends State<DoctorLettersScreen> {
     if (!categories.contains(selectedCategory)) {
       categories.add(selectedCategory);
     }
+    if (!mounted) return;
 
     final result = await showDialog<bool>(
       context: context,
@@ -497,7 +492,7 @@ class _DoctorLettersScreenState extends State<DoctorLettersScreen> {
                             return DropdownMenuItem<int?>(
                               value: doctor.id,
                               child: Text(
-                                _doctorDisplayName(doctor),
+                                doctorDisplayName(doctor),
                                 overflow: TextOverflow.ellipsis,
                               ),
                             );
@@ -668,14 +663,15 @@ class _DoctorLettersScreenState extends State<DoctorLettersScreen> {
       // NICHT verändert.
       // ------------------------------------------------------------
 
-      final updatedDocument =
-          document.copyWith(
-        title: title,
-        category: selectedCategory,
-        issueDate: selectedDate,
-        ocrText: ocrText,
-        updatedAt: DateTime.now(),
-      );
+        final updatedDocument =
+            document.copyWith(
+          title: title,
+          category: selectedCategory,
+          issueDate: selectedDate,
+          doctorId: selectedDoctorId,
+          ocrText: ocrText,
+          updatedAt: DateTime.now(),
+        );
 
       // ------------------------------------------------------------
       // Datenbank aktualisieren

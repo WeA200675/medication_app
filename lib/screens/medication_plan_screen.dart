@@ -452,7 +452,7 @@ class _MedicationPlanScreenState extends State<MedicationPlanScreen>
           child: ListTile(
             leading: CircleAvatar(
               backgroundColor: med.hasChanged
-                  ? highlightColor.withOpacity(0.15)
+                  ? Colors.teal.withValues(alpha: 0.15)
                   : Theme.of(context).colorScheme.primaryContainer,
               child: Icon(
                 Icons.medication,
@@ -526,7 +526,7 @@ class _MedicationPlanScreenState extends State<MedicationPlanScreen>
               DataColumn(label: Text('Scan', style: TextStyle(fontWeight: FontWeight.bold))),
             ],
             rows: _medications.map((med) {
-              final rowColor = med.hasChanged ? highlightColor.withOpacity(0.08) : null;
+              final rowColor = med.hasChanged ? highlightColor.withValues(alpha: 0.08) : null;
 
               return DataRow(
                 color: WidgetStateProperty.all(rowColor),

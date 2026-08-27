@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../models/doctor.dart';
 import 'database_service.dart';
+import 'package:flutter/foundation.dart';
 
 class DoctorApiService {
   // Benutzerdefinierter User-Agent (Vorgabe von OpenStreetMap/Nominatim)
@@ -11,10 +12,10 @@ class DoctorApiService {
 
   /// 1. Kostenlose Arztsuche via OpenStreetMap (Nominatim)
   static Future<List<Doctor>> searchDoctors(String query) async {
-    print('--> searchDoctors aufgerufen mit Query: "$query"');
+    debugPrint('--> searchDoctors aufgerufen mit Query: "$query"');
 
     if (query.trim().length < 2) {
-      print('--> Query zu kurz (< 2 Zeichen), wird übersprungen.');
+      debugPrint('--> Query zu kurz (< 2 Zeichen), wird übersprungen.');
       return [];
     }
 
@@ -32,11 +33,11 @@ class DoctorApiService {
     );
 
     try {
-      print('Sende Anfrage an: $url');
+      debugPrint('Sende Anfrage an: $url');
       final response = await http.get(url, headers: _headers);
 
-      print('OSM Status Code: ${response.statusCode}');
-      print('OSM Response Body: ${response.body}');
+      debugPrint('OSM Status Code: ${response.statusCode}');
+      debugPrint('OSM Response Body: ${response.body}');
 
       if (response.statusCode == 200) {
         final decoded = jsonDecode(response.body);
@@ -72,12 +73,14 @@ class DoctorApiService {
             );
           }).toList();
         } else {
-          print('Achtung: OSM hat keine Liste zurückgegeben, sondern: $decoded');
+          debugPrint('Achtung: OSM hat keine Liste zurückgegeben, sondern: $decoded');
         }
       }
     } catch (e, stackTrace) {
-      print('Fehler bei OpenStreetMap-Suche: $e');
-      print(stackTrace);
+      debugPrint('Fehler bei OpenStreetMap-Suche: $e');
+      debugPrint(
+        'Fehler ...\n$stackTrace',
+      );
     }
     return [];
   }

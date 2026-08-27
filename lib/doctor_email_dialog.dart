@@ -166,7 +166,7 @@ class _DoctorEmailDialogState extends State<DoctorEmailDialog> {
 
               // Dropdown-Auswahl für Vorlagen
               DropdownButtonFormField<EmailTemplate>(
-                value: _selectedTemplate,
+                initialValue: _selectedTemplate,
                 decoration: InputDecoration(
                   labelText: 'Vorlage auswählen (Stichwort)',
                   prefixIcon: const Icon(Icons.note_alt_outlined, color: Colors.teal),
