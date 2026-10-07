@@ -83,7 +83,7 @@ class DatabaseService {
     final handle = await file.open();
     try {
       final header = await handle.read(16);
-      return ascii.decode(header, allowInvalid: true) == 'SQLite format 3\\u0000';
+      return ascii.decode(header, allowInvalid: true) == 'SQLite format 3\u0000';
     } finally {
       await handle.close();
     }
