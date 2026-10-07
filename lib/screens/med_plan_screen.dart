@@ -610,7 +610,7 @@ class _AddEditMedicationDialogState extends State<_AddEditMedicationDialog> {
         isActive: isEditing ? existing!.isActive : true,
         isReminderActive: _isReminderActive,
         selectedDays: _selectedDays.toList()..sort(),
-        stockCount: (int.tryParse(_stockCtrl.text.trim()) ?? 0).clamp(0, 1000000),
+        stockCount: (int.tryParse(_stockCtrl.text.trim()) ?? 0).clamp(0, 1000000).toInt(),
         takenToday: isEditing ? existing!.takenToday : false,
       );
 
