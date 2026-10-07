@@ -1,6 +1,9 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:cryptography_flutter/cryptography_flutter.dart';
 import 'screens/med_plan_screen.dart';
 import 'screens/doctors_screen.dart';
 import 'screens/profile_screen.dart';
@@ -10,6 +13,7 @@ import 'services/ocr_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  FlutterCryptography.enable();
   await NotificationService.instance.init();
   runApp(const MedicationApp());
 }
@@ -103,7 +107,18 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
           const SnackBar(content: Text('Arztbrief wird analysiert...')),
         );
 
-        final extractedText = await OcrService.scanDocument(image.path);
+        late final String extractedText;
+        try {
+          extractedText = await OcrService.scanDocument(image.path);
+        } finally {
+          // The camera capture is only used for on-device OCR; do not leave a
+          // second unencrypted copy in the app cache.
+          try {
+            await File(image.path).delete();
+          } on FileSystemException {
+            // Cache cleanup is best effort; OCR output remains in memory only.
+          }
+        }
 
         if (!mounted) return;
 

@@ -11,7 +11,7 @@ Flutter-App zur persönlichen Verwaltung von Medikamenten, lokalen Einnahmeerinn
 - Arztkontakte sowie Scan und Ablage medizinischer Dokumente
 - Lokale PDF-Funktionen und manuelle Backups
 
-Die App verwendet derzeit eine lokale SQLite-Datenbank und lokale Profileinstellungen. **Gesundheitsdaten sind in dieser Version nicht app-seitig verschlüsselt.** Backups und E-Mail-Funktionen können Gesundheits- und Stammdaten außerhalb des Geräts weitergeben. Vor dem Teilen bitte Inhalt und Empfänger prüfen. In dieser Version gibt es keine Anmeldung und keine geräteübergreifende Synchronisation. Die Arztsuche übermittelt die eingegebene Suchanfrage an den öffentlichen Dienst OpenStreetMap Nominatim; bitte dort keine Patientennamen oder identifizierenden Angaben eingeben. Eine Online-Suche ist optional, Arztkontakte können manuell erfasst werden.
+Die lokale SQLite-Datenbank wird mit SQLCipher verschlüsselt; der zufällige Schlüssel liegt im Android Keystore. Stammdaten werden verschlüsselt in Android Secure Storage abgelegt. Android-Systembackups sind deshalb deaktiviert. Das schützt gespeicherte Daten im Ruhezustand, ersetzt aber keine unabhängige Sicherheitsprüfung. Manuelle Medikationsplan-Backups werden mit einem vom Nutzer gewählten Passwort verschlüsselt exportiert (AES-256-GCM, PBKDF2-HMAC-SHA-256). Das Passwort ist nicht wiederherstellbar; ohne Passwort kann ein Backup nicht importiert werden. E-Mail-/PDF-Exporte bleiben unverschlüsselt und können Gesundheits- und Stammdaten außerhalb des Geräts weitergeben. Vor dem Teilen bitte Inhalt und Empfänger prüfen. In dieser Version gibt es keine Anmeldung und keine geräteübergreifende Synchronisation. Die Arztsuche übermittelt die eingegebene Suchanfrage an den öffentlichen Dienst OpenStreetMap Nominatim; bitte dort keine Patientennamen oder identifizierenden Angaben eingeben. Eine Online-Suche ist optional, Arztkontakte können manuell erfasst werden.
 
 ## Voraussetzungen und Entwicklung
 
@@ -57,9 +57,9 @@ Das signierte APK liegt unter `build/app/outputs/flutter-apk/app-release.apk`. P
 
 ## Vor der Weitergabe an andere
 
-1. Auf echten Android-Geräten Benachrichtigungsberechtigungen, genaue und ungenaue Alarme, Neustart, Zeitzonen- und Sommerzeitwechsel testen.
-2. Datenschutz und Geräteschutz prüfen: sensible Daten sind aktuell nicht app-seitig verschlüsselt. Geräte-PIN/Displaysperre aktivieren; keine echten Gesundheitsdaten in ungesicherten Backups oder Testgeräten verwenden.
-3. Datenbankmigrationen, Backup-Wiederherstellung, OCR-Fehlerfälle und Barrierefreiheit manuell prüfen.
+1. Auf echten Android-Geräten Datenbankverschlüsselung, sichere Schlüsselspeicherung und App-Neustart testen; zusätzlich Benachrichtigungen, Alarme, Neustart, Zeitzonen- und Sommerzeitwechsel prüfen.
+2. Geräte-PIN/Displaysperre aktivieren. E-Mail-/PDF-Exporte bleiben unverschlüsselt. Alte JSON-Backups sind Klartext und werden nur nach ausdrücklicher Bestätigung importiert; neue Backups haben die Endung `.medbackup` und benötigen ihr Passwort zur Wiederherstellung.
+3. Datenbankmigration von unverschlüsselten Bestandsdaten, Wiederherstellung verschlüsselter und ausdrücklich freigegebener alter Backups, OCR-Fehlerfälle und Barrierefreiheit manuell prüfen.
 4. Nur an Personen weitergeben, die den Teststatus und die Einschränkungen kennen; Support- und Sicherheitskontakt festlegen.
 
 ## Lizenz und Kontakt

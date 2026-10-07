@@ -1,5 +1,10 @@
-import 'package:sqflite/sqflite.dart';
+import 'dart:convert';
+import 'dart:io';
+import 'dart:math';
+
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:path/path.dart';
+import 'package:sqflite_sqlcipher/sqflite.dart';
 
 import '../models/drug.dart';
 import '../models/med_plan_entry.dart';
@@ -10,6 +15,8 @@ class DatabaseService {
   static final DatabaseService instance = DatabaseService._init();
 
   static Database? _database;
+  static const _databaseKeyName = 'encrypted_database_key_v1';
+  static const FlutterSecureStorage _secureStorage = FlutterSecureStorage();
 
   DatabaseService._init();
 
@@ -30,13 +37,77 @@ class DatabaseService {
     final dbPath = await getDatabasesPath();
     final path = join(dbPath, fileName);
 
+    final password = await _getDatabasePassword(path);
+    if (await _isPlaintextDatabase(path)) {
+      await _encryptExistingPlaintextDatabase(path, password);
+    }
+
     return await openDatabase(
+      path,
+      password: password,
+      version: 3,
+      onCreate: _createDB,
+      onUpgrade: _onUpgrade,
+      onConfigure: _onConfigure,
+    );
+  }
+
+  Future<String> _getDatabasePassword(String path) async {
+    final savedPassword = await _secureStorage.read(key: _databaseKeyName);
+    if (savedPassword != null && savedPassword.isNotEmpty) {
+      return savedPassword;
+    }
+
+    final databaseFile = File(path);
+    if (await databaseFile.exists() &&
+        await databaseFile.length() > 0 &&
+        !await _isPlaintextDatabase(path)) {
+      throw StateError(
+        'Der Datenbankschlüssel fehlt, aber die Datenbank ist verschlüsselt. '
+        'Die App öffnet sie nicht mit einem neuen Schlüssel, um Datenverlust zu vermeiden.',
+      );
+    }
+
+    final random = Random.secure();
+    final password = base64UrlEncode(
+      List<int>.generate(32, (_) => random.nextInt(256)),
+    );
+    await _secureStorage.write(key: _databaseKeyName, value: password);
+    return password;
+  }
+
+  Future<bool> _isPlaintextDatabase(String path) async {
+    final file = File(path);
+    if (!await file.exists() || await file.length() < 16) return false;
+
+    final handle = await file.open();
+    try {
+      final header = await handle.read(16);
+      return ascii.decode(header, allowInvalid: true) == 'SQLite format 3\u0000';
+    } finally {
+      await handle.close();
+    }
+  }
+
+  Future<void> _encryptExistingPlaintextDatabase(
+    String path,
+    String password,
+  ) async {
+    // This supports an in-place transition from the previous plaintext DB.
+    // The key is stored first so an interrupted conversion can be resumed.
+    final database = await openDatabase(
       path,
       version: 3,
       onCreate: _createDB,
       onUpgrade: _onUpgrade,
       onConfigure: _onConfigure,
     );
+    try {
+      final escapedPassword = password.replaceAll("'", "''");
+      await database.execute("PRAGMA rekey = '$escapedPassword'");
+    } finally {
+      await database.close();
+    }
   }
 
   /// Aktiviert Foreign Keys.

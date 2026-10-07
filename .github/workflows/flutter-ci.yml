@@ -13,7 +13,7 @@ permissions:
 jobs:
   android:
     name: Analyze, test, and build Android debug APK
-    runs-on: ubuntu-latest
+    runs-on: macos-15-intel
     steps:
       - name: Check out source
         uses: actions/checkout@v4
@@ -29,10 +29,25 @@ jobs:
           cache: true
       - name: Resolve dependencies
         run: flutter pub get
+      - name: Archive resolved dependency lock
+        uses: actions/upload-artifact@v4
+        with:
+          name: resolved-pubspec-lock
+          path: pubspec.lock
+          retention-days: 1
       - name: Analyze
         run: flutter analyze --no-fatal-warnings --no-fatal-infos
       - name: Run tests
         run: flutter test
+      - name: Test encrypted storage on Android emulator
+        timeout-minutes: 15
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_7
+          script: flutter test integration_test/encrypted_storage_test.dart -d emulator-5554
       - name: Build Android debug APK
         run: flutter build apk --debug
       - name: Create temporary CI signing key

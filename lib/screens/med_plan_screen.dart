@@ -93,8 +93,10 @@ class _MedPlanScreenState extends State<MedPlanScreen> {
   }
 
   Future<void> _exportData() async {
+    final credentials = await _requestBackupCredentials(forExport: true);
+    if (credentials == null) return;
     try {
-      await BackupService.exportBackup();
+      await BackupService.exportBackup(password: credentials.password);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Backup erfolgreich exportiert!')),
@@ -108,8 +110,13 @@ class _MedPlanScreenState extends State<MedPlanScreen> {
   }
 
   Future<void> _importData() async {
+    final credentials = await _requestBackupCredentials(forExport: false);
+    if (credentials == null) return;
     try {
-      final count = await BackupService.importBackup();
+      final count = await BackupService.importBackup(
+        password: credentials.password,
+        allowLegacyPlaintext: credentials.allowLegacyPlaintext,
+      );
       if (!mounted) return;
       if (count > 0) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -127,6 +134,117 @@ class _MedPlanScreenState extends State<MedPlanScreen> {
         SnackBar(content: Text('Fehler beim Importieren: $e')),
       );
     }
+  }
+
+  Future<_BackupCredentials?> _requestBackupCredentials({
+    required bool forExport,
+  }) async {
+    final passwordController = TextEditingController();
+    final confirmationController = TextEditingController();
+    var allowLegacyPlaintext = false;
+    String? validationMessage;
+
+    final result = await showDialog<_BackupCredentials>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          title: Text(forExport ? 'Backup verschlüsseln' : 'Backup importieren'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  forExport
+                      ? 'Lege ein Passwort mit mindestens 12 Zeichen fest. Du brauchst es später für die Wiederherstellung.'
+                      : 'Gib das Passwort des verschlüsselten Backups ein.',
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: passwordController,
+                  obscureText: true,
+                  autofocus: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Backup-Passwort',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                if (forExport) ...[
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: confirmationController,
+                    obscureText: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Passwort wiederholen',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ] else ...[
+                  const SizedBox(height: 12),
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: allowLegacyPlaintext,
+                    onChanged: (value) => setDialogState(
+                      () => allowLegacyPlaintext = value ?? false,
+                    ),
+                    title: const Text('Altes unverschlüsseltes JSON-Backup zulassen'),
+                    subtitle: const Text(
+                      'Nur aktivieren, wenn du bewusst ein altes Backup importierst. '
+                      'Diese Datei enthält Gesundheitsdaten im Klartext.',
+                    ),
+                    controlAffinity: ListTileControlAffinity.leading,
+                  ),
+                ],
+                if (validationMessage != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    validationMessage!,
+                    style: TextStyle(color: Theme.of(context).colorScheme.error),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Abbrechen'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final password = passwordController.text;
+                final canImportLegacyWithoutPassword =
+                    !forExport && allowLegacyPlaintext && password.isEmpty;
+                if (!canImportLegacyWithoutPassword && password.length < 12) {
+                  setDialogState(() {
+                    validationMessage = 'Das Passwort muss mindestens 12 Zeichen haben.';
+                  });
+                  return;
+                }
+                if (forExport && password != confirmationController.text) {
+                  setDialogState(() {
+                    validationMessage = 'Die Passwörter stimmen nicht überein.';
+                  });
+                  return;
+                }
+                Navigator.pop(
+                  dialogContext,
+                  _BackupCredentials(
+                    password: password,
+                    allowLegacyPlaintext: allowLegacyPlaintext,
+                  ),
+                );
+              },
+              child: Text(forExport ? 'Verschlüsseln' : 'Weiter'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    passwordController.dispose();
+    confirmationController.dispose();
+    return result;
   }
 
   Future<void> _confirmDelete(MedPlanEntry item) async {
@@ -774,4 +892,14 @@ class _AddEditMedicationDialogState extends State<_AddEditMedicationDialog> {
       ],
     );
   }
+}
+
+class _BackupCredentials {
+  final String password;
+  final bool allowLegacyPlaintext;
+
+  const _BackupCredentials({
+    required this.password,
+    required this.allowLegacyPlaintext,
+  });
 }
