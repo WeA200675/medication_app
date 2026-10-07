@@ -16,6 +16,7 @@ class NotificationService {
 
   static const int _weekdayIdMultiplier = 10;
   static const int _notificationIdNamespace = 1000000000;
+  bool _permissionsRequested = false;
 
   Future<void> init() async {
     tz_data.initializeTimeZones();
@@ -27,7 +28,6 @@ class NotificationService {
     );
 
     await _notificationsPlugin.initialize(initializationSettings);
-    await requestPermissions();
   }
 
   Future<void> _setDeviceTimeZone() async {
@@ -42,17 +42,28 @@ class NotificationService {
     }
   }
 
-  Future<void> requestPermissions() async {
+  Future<void> _requestPermissionsIfNeeded() async {
+    if (_permissionsRequested) return;
+    _permissionsRequested = true;
+
     final android = _notificationsPlugin
         .resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin>();
-    await android?.requestNotificationsPermission();
-    await android?.requestExactAlarmsPermission();
+    try {
+      await android?.requestNotificationsPermission();
+      await android?.requestExactAlarmsPermission();
+    } catch (error) {
+      debugPrint('Android-Erinnerungsberechtigung nicht verfügbar: $error');
+    }
 
     final ios = _notificationsPlugin
         .resolvePlatformSpecificImplementation<
             IOSFlutterLocalNotificationsPlugin>();
-    await ios?.requestPermissions(alert: true, badge: false, sound: true);
+    try {
+      await ios?.requestPermissions(alert: true, badge: false, sound: true);
+    } catch (error) {
+      debugPrint('iOS-Erinnerungsberechtigung nicht verfügbar: $error');
+    }
   }
 
   Future<void> scheduleMedicationReminder(MedPlanEntry entry) async {
@@ -63,6 +74,7 @@ class NotificationService {
 
     await cancelReminder(id);
     if (!entry.isActive || !entry.isReminderActive) return;
+    await _requestPermissionsIfNeeded();
 
     final timeParts = entry.time.split(':');
     if (timeParts.length != 2) {
@@ -84,6 +96,14 @@ class NotificationService {
     if (weekdays.isEmpty) return;
 
     final now = tz.TZDateTime.now(tz.local);
+    final android = _notificationsPlugin
+        .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>();
+    final canUseExactAlarms =
+        await android?.canScheduleExactNotifications() ?? false;
+    final scheduleMode = canUseExactAlarms
+        ? AndroidScheduleMode.exactAllowWhileIdle
+        : AndroidScheduleMode.inexactAllowWhileIdle;
     final title = 'Erinnerung: ${entry.drugName}';
     final body = entry.instructions.trim().isEmpty
         ? 'Dosis: ${entry.dosage}'
@@ -128,7 +148,7 @@ class NotificationService {
         ),
         uiLocalNotificationDateInterpretation:
             UILocalNotificationDateInterpretation.absoluteTime,
-        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        androidScheduleMode: scheduleMode,
         matchDateTimeComponents: DateTimeComponents.dayOfWeekAndTime,
       );
     }
