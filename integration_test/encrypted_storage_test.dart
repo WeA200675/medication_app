@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:medication_app/models/med_plan_entry.dart';
@@ -15,6 +17,7 @@ void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
   testWidgets('migrates and encrypts local health data at rest', (tester) async {
+    debugPrint('storage-test: started');
     final databasePath = p.join(
       await getDatabasesPath(),
       'medication_app.db',
@@ -53,8 +56,10 @@ void main() {
       },
     );
     await legacyDatabase.close();
+    debugPrint('storage-test: legacy database ready');
 
     final database = await DatabaseService.instance.database;
+    debugPrint('storage-test: encrypted database opened');
     final entry = MedPlanEntry(
       drugName: 'Encrypted CI',
       dosage: '1',
@@ -70,6 +75,7 @@ void main() {
     await headerHandle.close();
     expect(ascii.decode(header, allowInvalid: true), isNot('SQLite format 3\u0000'));
 
+    debugPrint('storage-test: database encryption verified');
     final legacyPrefs = await SharedPreferences.getInstance();
     await legacyPrefs.setString('user_name', 'Legacy Profile');
     await legacyPrefs.setString('user_insurance_num', 'LEGACY-123');
@@ -78,6 +84,7 @@ void main() {
     expect(migratedProfile.insuranceNumber, 'LEGACY-123');
     expect(legacyPrefs.getString('user_name'), isNull);
 
+    debugPrint('storage-test: legacy profile migration verified');
     const profile = UserProfile(
       name: 'Secure CI profile',
       insuranceNumber: 'TEST-123',
@@ -87,6 +94,7 @@ void main() {
     expect(restoredProfile.name, profile.name);
     expect(restoredProfile.insuranceNumber, profile.insuranceNumber);
 
+    debugPrint('storage-test: secure profile write verified');
     await DatabaseService.instance.close();
     final reopened = await DatabaseService.instance.getMedPlan();
     expect(
@@ -94,5 +102,6 @@ void main() {
       containsAll(['Legacy CI', 'Encrypted CI']),
     );
     await DatabaseService.instance.close();
-  });
+    debugPrint('storage-test: completed');
+  }, timeout: const Timeout(Duration(minutes: 4)));
 }
