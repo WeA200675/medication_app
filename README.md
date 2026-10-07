@@ -11,7 +11,7 @@ Flutter-App zur persönlichen Verwaltung von Medikamenten, lokalen Einnahmeerinn
 - Arztkontakte sowie Scan und Ablage medizinischer Dokumente
 - Lokale PDF-Funktionen und manuelle Backups
 
-Die App verwendet derzeit eine lokale SQLite-Datenbank und lokale Profileinstellungen. Backups und E-Mail-Funktionen können Gesundheits- und Stammdaten außerhalb des Geräts weitergeben. Vor dem Teilen bitte Inhalt und Empfänger prüfen. In dieser Version gibt es keine Anmeldung und keine geräteübergreifende Synchronisation.
+Die App verwendet derzeit eine lokale SQLite-Datenbank und lokale Profileinstellungen. Backups und E-Mail-Funktionen können Gesundheits- und Stammdaten außerhalb des Geräts weitergeben. Vor dem Teilen bitte Inhalt und Empfänger prüfen. In dieser Version gibt es keine Anmeldung und keine geräteübergreifende Synchronisation. Die Arztsuche übermittelt die eingegebene Suchanfrage an den öffentlichen Dienst OpenStreetMap Nominatim; bitte dort keine Patientennamen oder identifizierenden Angaben eingeben. Eine Online-Suche ist optional, Arztkontakte können manuell erfasst werden.
 
 ## Voraussetzungen und Entwicklung
 
