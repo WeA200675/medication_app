@@ -539,11 +539,19 @@ class _AddEditMedicationDialogState extends State<_AddEditMedicationDialog> {
   late TextEditingController _stockCtrl;
 
   bool get isEditing => widget.existingEntry != null;
+  late Set<int> _selectedDays;
+
+  static const List<String> _weekdayLabels = [
+    'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So',
+  ];
 
   @override
   void initState() {
     super.initState();
     final entry = widget.existingEntry;
+    _selectedDays = (entry?.selectedDays ?? const [1, 2, 3, 4, 5, 6, 7])
+        .where((day) => day >= 1 && day <= 7)
+        .toSet();
     _nameCtrl = TextEditingController(text: isEditing ? entry!.drugName : widget.prefilledName);
     _dosageCtrl = TextEditingController(text: isEditing ? entry!.dosage : widget.prefilledDosage);
     _timeCtrl = TextEditingController(text: isEditing ? entry!.time : '08:00');
@@ -573,6 +581,13 @@ class _AddEditMedicationDialogState extends State<_AddEditMedicationDialog> {
       return;
     }
 
+    if (_selectedDays.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Bitte mindestens einen Wochentag auswählen.')),
+      );
+      return;
+    }
+
     try {
       final existing = widget.existingEntry;
       final entryToSave = MedPlanEntry(
@@ -583,9 +598,7 @@ class _AddEditMedicationDialogState extends State<_AddEditMedicationDialog> {
         instructions: _instructionsCtrl.text.trim(),
         isActive: isEditing ? existing!.isActive : true,
         isReminderActive: isEditing ? existing!.isReminderActive : true,
-        selectedDays: isEditing
-            ? existing!.selectedDays
-            : const [1, 2, 3, 4, 5, 6, 7],
+        selectedDays: _selectedDays.toList()..sort(),
         stockCount: int.tryParse(_stockCtrl.text.trim()) ?? 0,
         takenToday: isEditing ? existing!.takenToday : false,
       );
@@ -675,6 +688,35 @@ class _AddEditMedicationDialogState extends State<_AddEditMedicationDialog> {
                   });
                 }
               },
+            ),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Padding(
+                padding: const EdgeInsets.only(top: 16, bottom: 4),
+                child: Text(
+                  'Erinnerung an diesen Tagen',
+                  style: Theme.of(context).textTheme.labelLarge,
+                ),
+              ),
+            ),
+            Wrap(
+              spacing: 4,
+              children: List<Widget>.generate(7, (index) {
+                final weekday = index + 1;
+                return FilterChip(
+                  label: Text(_weekdayLabels[index]),
+                  selected: _selectedDays.contains(weekday),
+                  onSelected: (selected) {
+                    setState(() {
+                      if (selected) {
+                        _selectedDays.add(weekday);
+                      } else {
+                        _selectedDays.remove(weekday);
+                      }
+                    });
+                  },
+                );
+              }),
             ),
             TextField(
               controller: _instructionsCtrl,
