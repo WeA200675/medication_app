@@ -540,6 +540,7 @@ class _AddEditMedicationDialogState extends State<_AddEditMedicationDialog> {
 
   bool get isEditing => widget.existingEntry != null;
   late Set<int> _selectedDays;
+  late bool _isReminderActive;
 
   static const List<String> _weekdayLabels = [
     'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So',
@@ -552,6 +553,7 @@ class _AddEditMedicationDialogState extends State<_AddEditMedicationDialog> {
     _selectedDays = (entry?.selectedDays ?? const [1, 2, 3, 4, 5, 6, 7])
         .where((day) => day >= 1 && day <= 7)
         .toSet();
+    _isReminderActive = entry?.isReminderActive ?? true;
     _nameCtrl = TextEditingController(text: isEditing ? entry!.drugName : widget.prefilledName);
     _dosageCtrl = TextEditingController(text: isEditing ? entry!.dosage : widget.prefilledDosage);
     _timeCtrl = TextEditingController(text: isEditing ? entry!.time : '08:00');
@@ -597,7 +599,7 @@ class _AddEditMedicationDialogState extends State<_AddEditMedicationDialog> {
         time: _timeCtrl.text.trim().isEmpty ? '08:00' : _timeCtrl.text.trim(),
         instructions: _instructionsCtrl.text.trim(),
         isActive: isEditing ? existing!.isActive : true,
-        isReminderActive: isEditing ? existing!.isReminderActive : true,
+        isReminderActive: _isReminderActive,
         selectedDays: _selectedDays.toList()..sort(),
         stockCount: int.tryParse(_stockCtrl.text.trim()) ?? 0,
         takenToday: isEditing ? existing!.takenToday : false,
@@ -688,6 +690,12 @@ class _AddEditMedicationDialogState extends State<_AddEditMedicationDialog> {
                   });
                 }
               },
+            ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Erinnerungen aktivieren'),
+              value: _isReminderActive,
+              onChanged: (value) => setState(() => _isReminderActive = value),
             ),
             Align(
               alignment: Alignment.centerLeft,
