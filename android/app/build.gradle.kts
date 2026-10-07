@@ -14,7 +14,7 @@ val hasReleaseSigning = listOf("storeFile", "storePassword", "keyAlias", "keyPas
     .all { !signingProperties.getProperty(it).isNullOrBlank() }
 
 android {
-    namespace = "com.example.medication_app"
+    namespace = "de.wea200675.medikationsplan"
     compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
@@ -25,7 +25,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.medication_app"
+        applicationId = "de.wea200675.medikationsplan"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
