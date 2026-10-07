@@ -39,7 +39,7 @@ Dann:
 
     flutter build appbundle --release
 
-Vor einer Veröffentlichung müssen außerdem eine eindeutige, dem Herausgeber gehörende applicationId, Store-Metadaten, Datenschutzinformationen, Supportkontakt und Release-Schlüssel festgelegt werden. Die aktuelle Paket-ID ist noch ein Flutter-Beispielwert; eine Änderung nach dem ersten Store-Release wäre ein inkompatibles neues App-Paket.
+Vor einer Veröffentlichung müssen außerdem eindeutige, dem Herausgeber gehörende Android- und iOS-Paketkennungen, Store-Metadaten, Datenschutzinformationen, Supportkontakt und Release-Schlüssel festgelegt werden. Die aktuellen Paketkennungen sind noch Flutter-Beispielwerte; Änderungen nach dem ersten Store-Release wären inkompatible neue App-Pakete.
 
 ## Vor einem öffentlichen Rollout
 
