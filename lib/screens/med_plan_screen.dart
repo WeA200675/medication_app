@@ -30,6 +30,15 @@ class _MedPlanScreenState extends State<MedPlanScreen> {
   Future<void> _loadMedPlan() async {
     try {
       final plan = await DatabaseService.instance.getMedPlan();
+      // Reconcile scheduled reminders with persisted medication data whenever
+      // the plan loads, including after a reboot or permission change.
+      for (final entry in plan) {
+        try {
+          await NotificationService.instance.scheduleMedicationReminder(entry);
+        } catch (error) {
+          debugPrint('Reminder konnte nicht wiederhergestellt werden: $error');
+        }
+      }
       if (!mounted) return;
       setState(() {
         _medPlan = plan;
