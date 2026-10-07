@@ -14,46 +14,85 @@ import 'package:sqflite_sqlcipher/sqflite.dart';
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
-  testWidgets('encrypts local database and profile at rest', (tester) async {
-    final database = await DatabaseService.instance.database;
-    final entry = MedPlanEntry(
-      drugName: 'CI Test',
-      dosage: '1',
-      time: '08:00',
-      selectedDays: const [1],
-    );
-    final id = await database.insert('med_plan', entry.toMap());
-    final rows = await database.query(
-      'med_plan',
-      where: 'id = ?',
-      whereArgs: [id],
-    );
-    expect(rows.single['drugName'], 'CI Test');
-
+  testWidgets('migrates and encrypts local health data at rest', (tester) async {
     final databasePath = p.join(
       await getDatabasesPath(),
       'medication_app.db',
     );
+
+    // Simulate the existing plaintext database before the encrypted release.
+    final legacyDatabase = await openDatabase(
+      databasePath,
+      version: 3,
+      onCreate: (database, _) async {
+        await database.execute('''
+          CREATE TABLE med_plan (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            drugName TEXT NOT NULL,
+            dosage TEXT NOT NULL,
+            time TEXT NOT NULL,
+            instructions TEXT,
+            isActive INTEGER NOT NULL DEFAULT 1,
+            isReminderActive INTEGER NOT NULL DEFAULT 0,
+            selectedDays TEXT NOT NULL,
+            stockCount INTEGER NOT NULL DEFAULT 0,
+            takenToday INTEGER NOT NULL DEFAULT 0
+          )
+        ''');
+        await database.insert('med_plan', {
+          'drugName': 'Legacy CI',
+          'dosage': '1',
+          'time': '08:00',
+          'instructions': '',
+          'isActive': 1,
+          'isReminderActive': 0,
+          'selectedDays': '[1]',
+          'stockCount': 0,
+          'takenToday': 0,
+        });
+      },
+    );
+    await legacyDatabase.close();
+
+    final database = await DatabaseService.instance.database;
+    final entry = MedPlanEntry(
+      drugName: 'Encrypted CI',
+      dosage: '1',
+      time: '08:30',
+      selectedDays: const [1],
+    );
+    await database.insert('med_plan', entry.toMap());
+    final rows = await DatabaseService.instance.getMedPlan();
+    expect(rows.map((row) => row.drugName), containsAll(['Legacy CI', 'Encrypted CI']));
+
     final headerHandle = await File(databasePath).open();
     final header = await headerHandle.read(16);
     await headerHandle.close();
-    expect(ascii.decode(header, allowInvalid: true), isNot('SQLite format 3\u0000'));
+    expect(ascii.decode(header, allowInvalid: true), isNot('SQLite format 3\\u0000'));
+
+    final legacyPrefs = await SharedPreferences.getInstance();
+    await legacyPrefs.setString('user_name', 'Legacy Profile');
+    await legacyPrefs.setString('user_insurance_num', 'LEGACY-123');
+    final migratedProfile = await ProfileService.getProfile();
+    expect(migratedProfile.name, 'Legacy Profile');
+    expect(migratedProfile.insuranceNumber, 'LEGACY-123');
+    expect(legacyPrefs.getString('user_name'), isNull);
 
     const profile = UserProfile(
       name: 'Secure CI profile',
       insuranceNumber: 'TEST-123',
     );
     await ProfileService.saveProfile(profile);
-    final restored = await ProfileService.getProfile();
-    expect(restored.name, profile.name);
-    expect(restored.insuranceNumber, profile.insuranceNumber);
-
-    final legacyPrefs = await SharedPreferences.getInstance();
-    expect(legacyPrefs.getString('user_name'), isNull);
+    final restoredProfile = await ProfileService.getProfile();
+    expect(restoredProfile.name, profile.name);
+    expect(restoredProfile.insuranceNumber, profile.insuranceNumber);
 
     await DatabaseService.instance.close();
     final reopened = await DatabaseService.instance.getMedPlan();
-    expect(reopened.single.drugName, 'CI Test');
+    expect(
+      reopened.map((row) => row.drugName),
+      containsAll(['Legacy CI', 'Encrypted CI']),
+    );
     await DatabaseService.instance.close();
   });
 }
