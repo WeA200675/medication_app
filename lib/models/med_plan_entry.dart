@@ -46,11 +46,13 @@ class MedPlanEntry {
 
   factory MedPlanEntry.fromMap(Map<String, dynamic> map) {
     var parsedDays = <int>[];
+    var parsedDaysSuccessfully = false;
     final rawDays = map['selectedDays'];
     if (rawDays is String && rawDays.isNotEmpty) {
       try {
         final decoded = jsonDecode(rawDays);
         if (decoded is List) {
+          parsedDaysSuccessfully = true;
           parsedDays = decoded.whereType<int>()
               .where((day) => day >= 1 && day <= 7)
               .toSet()
@@ -61,7 +63,7 @@ class MedPlanEntry {
         // Older or damaged rows fall back to the historical daily schedule.
       }
     }
-    if (parsedDays.isEmpty) {
+    if (!parsedDaysSuccessfully) {
       parsedDays = [1, 2, 3, 4, 5, 6, 7];
     }
 
