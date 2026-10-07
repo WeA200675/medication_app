@@ -67,8 +67,8 @@ class MedPlanEntry {
 
     final rawId = map['id'];
     final rawStockCount = map['stockCount'];
-    final active = map['isActive'];
-    final reminderActive = map['isReminderActive'];
+    final active = map['isActive'] ?? 1;
+    final reminderActive = map['isReminderActive'] ?? 1;
     final taken = map['takenToday'];
 
     return MedPlanEntry(
