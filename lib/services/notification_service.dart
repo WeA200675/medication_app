@@ -17,6 +17,7 @@ class NotificationService {
   static const int _weekdayIdMultiplier = 10;
   static const int _notificationIdNamespace = 1000000000;
   bool _permissionsRequested = false;
+  bool _notificationsPermissionGranted = true;
 
   Future<void> init() async {
     tz_data.initializeTimeZones();
@@ -50,9 +51,11 @@ class NotificationService {
         .resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin>();
     try {
-      await android?.requestNotificationsPermission();
+      final granted = await android?.requestNotificationsPermission();
+      if (granted == false) _notificationsPermissionGranted = false;
       await android?.requestExactAlarmsPermission();
     } catch (error) {
+      _notificationsPermissionGranted = false;
       debugPrint('Android-Erinnerungsberechtigung nicht verfügbar: $error');
     }
 
@@ -60,8 +63,14 @@ class NotificationService {
         .resolvePlatformSpecificImplementation<
             IOSFlutterLocalNotificationsPlugin>();
     try {
-      await ios?.requestPermissions(alert: true, badge: false, sound: true);
+      final granted = await ios?.requestPermissions(
+        alert: true,
+        badge: false,
+        sound: true,
+      );
+      if (granted == false) _notificationsPermissionGranted = false;
     } catch (error) {
+      _notificationsPermissionGranted = false;
       debugPrint('iOS-Erinnerungsberechtigung nicht verfügbar: $error');
     }
   }
@@ -75,6 +84,9 @@ class NotificationService {
     await cancelReminder(id);
     if (!entry.isActive || !entry.isReminderActive) return;
     await _requestPermissionsIfNeeded();
+    if (!_notificationsPermissionGranted) {
+      throw StateError('Benachrichtigungen sind für die App nicht freigegeben.');
+    }
 
     final timeParts = entry.time.split(':');
     if (timeParts.length != 2) {
