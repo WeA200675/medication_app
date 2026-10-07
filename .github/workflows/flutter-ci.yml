@@ -35,3 +35,27 @@ jobs:
         run: flutter test
       - name: Build Android debug APK
         run: flutter build apk --debug
+      - name: Create temporary CI signing key
+        shell: bash
+        run: |
+          set -euo pipefail
+          key_password="$(openssl rand -hex 24)"
+          echo "::add-mask::$key_password"
+          keytool -genkeypair -noprompt -v \
+            -keystore "$GITHUB_WORKSPACE/android/ci-release.jks" \
+            -storepass "$key_password" -keypass "$key_password" \
+            -alias ci-release -keyalg RSA -keysize 2048 -validity 2 \
+            -dname "CN=Temporary CI Signing Key"
+          cat > android/key.properties <<EOF
+          storeFile=$GITHUB_WORKSPACE/android/ci-release.jks
+          storePassword=$key_password
+          keyAlias=ci-release
+          keyPassword=$key_password
+          EOF
+      - name: Build signed Android release APK
+        run: flutter build apk --release
+      - name: Verify signed Android release APK
+        run: apksigner verify --verbose --print-certs build/app/outputs/flutter-apk/app-release.apk
+      - name: Remove temporary signing material
+        if: always()
+        run: rm -f android/key.properties android/ci-release.jks
