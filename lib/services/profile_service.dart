@@ -26,6 +26,8 @@ class ProfileService {
       if (decoded is! Map<String, dynamic>) {
         throw const FormatException('Gespeichertes Profil ist beschädigt.');
       }
+      final prefs = await SharedPreferences.getInstance();
+      await _removeLegacyProfile(prefs);
       return _profileFromMap(decoded);
     }
 
