@@ -55,7 +55,13 @@ jobs:
       - name: Build signed Android release APK
         run: flutter build apk --release
       - name: Verify signed Android release APK
-        run: apksigner verify --verbose --print-certs build/app/outputs/flutter-apk/app-release.apk
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdk_root="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
+          apksigner_path="$(find "$sdk_root/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
+          test -n "$apksigner_path"
+          "$apksigner_path" verify --verbose --print-certs build/app/outputs/flutter-apk/app-release.apk
       - name: Remove temporary signing material
         if: always()
         run: rm -f android/key.properties android/ci-release.jks
