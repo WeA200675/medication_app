@@ -9,15 +9,11 @@
     <!-- Berechtigungen für Benachrichtigungen & Erinnerungen -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
-    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
-    <!-- Berechtigungen für Dateiauswahl & Speicher -->
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
-    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
 
     <application
-        android:label="medication_app"
+        android:label="Medikationsplan"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
 

@@ -1,100 +1,110 @@
 import 'dart:convert';
+
 import 'package:http/http.dart' as http;
+
 import '../models/doctor.dart';
 import 'database_service.dart';
-import 'package:flutter/foundation.dart';
 
 class DoctorApiService {
-  // Benutzerdefinierter User-Agent (Vorgabe von OpenStreetMap/Nominatim)
   static const Map<String, String> _headers = {
-    'User-Agent': 'ArztVerwaltungApp/1.0 (kontakt@beispiel.de)'
+    'User-Agent': 'medication_app/1.0 (https://github.com/WeA200675/medication_app)',
+    'Accept': 'application/json',
   };
 
-  /// 1. Kostenlose Arztsuche via OpenStreetMap (Nominatim)
+  /// Searches OpenStreetMap's Nominatim service. Search terms are sent to that
+  /// public service, so do not include patient names or other identifying data.
   static Future<List<Doctor>> searchDoctors(String query) async {
-    debugPrint('--> searchDoctors aufgerufen mit Query: "$query"');
+    final normalizedQuery = query.trim();
+    if (normalizedQuery.length < 2) return [];
 
-    if (query.trim().length < 2) {
-      debugPrint('--> Query zu kurz (< 2 Zeichen), wird übersprungen.');
-      return [];
-    }
-
-    // Suchbegriff direkt 1:1 übernehmen, ohne künstliche Anhänge wie "Arzt"
-    final finalQuery = query.trim();
-
-    final url = Uri.parse(
-      'https://nominatim.openstreetmap.org/search'
-      '?q=${Uri.encodeComponent(finalQuery)}'
-      '&format=json'
-      '&addressdetails=1'
-      '&extratags=1'
-      '&limit=15'
-      '&accept-language=de',
+    final uri = Uri.https(
+      'nominatim.openstreetmap.org',
+      '/search',
+      {
+        'q': normalizedQuery,
+        'format': 'jsonv2',
+        'addressdetails': '1',
+        'extratags': '1',
+        'limit': '15',
+        'accept-language': 'de',
+      },
     );
 
     try {
-      debugPrint('Sende Anfrage an: $url');
-      final response = await http.get(url, headers: _headers);
+      final response = await http
+          .get(uri, headers: _headers)
+          .timeout(const Duration(seconds: 12));
+      if (response.statusCode != 200) return [];
 
-      debugPrint('OSM Status Code: ${response.statusCode}');
-      debugPrint('OSM Response Body: ${response.body}');
+      final decoded = jsonDecode(response.body);
+      if (decoded is! List) return [];
 
-      if (response.statusCode == 200) {
-        final decoded = jsonDecode(response.body);
-
-        if (decoded is List) {
-          return decoded.map((item) {
-            final address = item['address'] ?? {};
-            final extra = item['extratags'] ?? {};
-
-            // Adresse zusammenbauen
-            final road = address['road'] ?? address['pedestrian'] ?? '';
-            final houseNumber = address['house_number'] ?? '';
-            final postCode = address['postcode'] ?? '';
-            final city = address['city'] ?? address['town'] ?? address['village'] ?? '';
-            final fullAddress = '$road $houseNumber, $postCode $city'.trim();
-
-            // Kontaktdaten aus OpenStreetMap Extratags auslesen (falls vorhanden)
-            final phone = extra['phone'] ?? extra['contact:phone'] ?? '';
-            final email = extra['email'] ?? extra['contact:email'] ?? '';
-            final website = extra['website'] ?? extra['contact:website'] ?? '';
-            final openingHours = extra['opening_hours'] ?? '';
-
-            return Doctor(
-              placeId: item['place_id']?.toString() ?? '',
-              name: item['display_name']?.split(',').first ?? item['name'] ?? query,
-              specialty: extra['healthcare:speciality'] ?? extra['amenity'] ?? 'Facharzt / Praxis',
-              address: fullAddress.isNotEmpty ? fullAddress : item['display_name'] ?? '',
-              phone: phone,
-              email: email,
-              openingHours: openingHours,
-              appointmentUrl: website,
-              lastUpdated: DateTime.now().toIso8601String().split('T')[0],
-            );
-          }).toList();
-        } else {
-          debugPrint('Achtung: OSM hat keine Liste zurückgegeben, sondern: $decoded');
-        }
-      }
-    } catch (e, stackTrace) {
-      debugPrint('Fehler bei OpenStreetMap-Suche: $e');
-      debugPrint(
-        'Fehler ...\n$stackTrace',
-      );
+      return decoded
+          .whereType<Map>()
+          .map((item) => _doctorFromNominatim(
+                Map<String, dynamic>.from(item),
+                normalizedQuery,
+              ))
+          .toList();
+    } catch (_) {
+      // Search is optional; callers can present an empty result and allow
+      // manual doctor entry when the service is unavailable.
+      return [];
     }
-    return [];
   }
 
-  /// 2. Details aktualisieren & E-Mail von Website scrapen (optional)
-  static Future<Doctor> refreshDoctorDetails(Doctor doctor) async {
-    if (doctor.appointmentUrl == null || doctor.appointmentUrl!.isEmpty) {
-      return doctor;
+  static Doctor _doctorFromNominatim(
+    Map<String, dynamic> item,
+    String fallbackName,
+  ) {
+    final rawAddress = item['address'];
+    final address = rawAddress is Map ? rawAddress : const <String, dynamic>{};
+    final rawExtras = item['extratags'];
+    final extras = rawExtras is Map ? rawExtras : const <String, dynamic>{};
+
+    String valueFrom(Map values, List<String> keys) {
+      for (final key in keys) {
+        final value = values[key];
+        if (value is String && value.trim().isNotEmpty) return value.trim();
+      }
+      return '';
     }
 
-    String newEmail = doctor.email;
-    if (newEmail.isEmpty) {
-      newEmail = await _extractEmailFromWebsite(doctor.appointmentUrl!);
-    }
+    final road = valueFrom(address, ['road', 'pedestrian']);
+    final houseNumber = valueFrom(address, ['house_number']);
+    final postcode = valueFrom(address, ['postcode']);
+    final city = valueFrom(address, ['city', 'town', 'village']);
+    final addressParts = [
+      [road, houseNumber].where((part) => part.isNotEmpty).join(' '),
+      [postcode, city].where((part) => part.isNotEmpty).join(' '),
+    ].where((part) => part.isNotEmpty);
+    final displayName = item['display_name'] is String
+        ? item['display_name'] as String
+        : '';
+
+    return Doctor(
+      placeId: item['place_id']?.toString() ?? '',
+      name: displayName.split(',').first.trim().isNotEmpty
+          ? displayName.split(',').first.trim()
+          : (item['name'] is String ? item['name'] as String : fallbackName),
+      specialty: valueFrom(extras, ['healthcare:speciality', 'amenity'])
+          .ifEmpty('Facharzt / Praxis'),
+      address: addressParts.join(', ').ifEmpty(displayName),
+      phone: valueFrom(extras, ['phone', 'contact:phone']),
+      email: valueFrom(extras, ['email', 'contact:email']),
+      openingHours: valueFrom(extras, ['opening_hours']),
+      appointmentUrl: valueFrom(extras, ['website', 'contact:website']),
+      lastUpdated: DateTime.now().toIso8601String().split('T').first,
+    );
+  }
+
+  /// Refreshes a saved doctor's details and optionally looks for a public email
+  /// address on the practice website.
+  static Future<Doctor> refreshDoctorDetails(Doctor doctor) async {
+    final website = doctor.appointmentUrl?.trim() ?? '';
+    final newEmail = doctor.email.isNotEmpty || website.isEmpty
+        ? doctor.email
+        : await _extractEmailFromWebsite(website);
 
     final updatedDoctor = Doctor(
       id: doctor.id,
@@ -106,14 +116,13 @@ class DoctorApiService {
       openingHours: doctor.openingHours,
       appointmentUrl: doctor.appointmentUrl,
       placeId: doctor.placeId,
-      lastUpdated: DateTime.now().toIso8601String().split('T')[0],
+      lastUpdated: DateTime.now().toIso8601String().split('T').first,
     );
 
     await DatabaseService.instance.updateDoctor(updatedDoctor);
     return updatedDoctor;
   }
 
-  /// 3. Web-Crawler & RegEx-Extraktor für E-Mail-Adressen von Praxis-Webseiten
   static Future<String> _extractEmailFromWebsite(String websiteUrl) async {
     final emailRegex = RegExp(
       r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}',
@@ -121,22 +130,31 @@ class DoctorApiService {
 
     try {
       final uri = Uri.parse(websiteUrl);
-      
-      // Hauptseite abfragen
-      final response = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 4));
+      if (uri.scheme != 'https' || uri.host.isEmpty) return '';
+
+      final response = await http
+          .get(uri, headers: _headers)
+          .timeout(const Duration(seconds: 4));
       if (response.statusCode == 200) {
         final match = emailRegex.firstMatch(response.body);
         if (match != null) return match.group(0)!;
       }
 
-      // Impressum-Unterseite abfragen
-      final impressumUri = uri.replace(path: '/impressum');
-      final impResponse = await http.get(impressumUri, headers: _headers).timeout(const Duration(seconds: 4));
-      if (impResponse.statusCode == 200) {
-        final match = emailRegex.firstMatch(impResponse.body);
+      final impressumUri = uri.replace(path: '/impressum', query: null, fragment: null);
+      final impressumResponse = await http
+          .get(impressumUri, headers: _headers)
+          .timeout(const Duration(seconds: 4));
+      if (impressumResponse.statusCode == 200) {
+        final match = emailRegex.firstMatch(impressumResponse.body);
         if (match != null) return match.group(0)!;
       }
-    } catch (_) {}
+    } catch (_) {
+      // The address remains editable and can be entered manually.
+    }
     return '';
   }
+}
+
+extension on String {
+  String ifEmpty(String fallback) => isEmpty ? fallback : this;
 }

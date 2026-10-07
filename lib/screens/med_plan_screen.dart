@@ -30,6 +30,15 @@ class _MedPlanScreenState extends State<MedPlanScreen> {
   Future<void> _loadMedPlan() async {
     try {
       final plan = await DatabaseService.instance.getMedPlan();
+      // Reconcile scheduled reminders with persisted medication data whenever
+      // the plan loads, including after a reboot or permission change.
+      for (final entry in plan) {
+        try {
+          await NotificationService.instance.scheduleMedicationReminder(entry);
+        } catch (error) {
+          debugPrint('Reminder konnte nicht wiederhergestellt werden: $error');
+        }
+      }
       if (!mounted) return;
       setState(() {
         _medPlan = plan;
@@ -539,11 +548,21 @@ class _AddEditMedicationDialogState extends State<_AddEditMedicationDialog> {
   late TextEditingController _stockCtrl;
 
   bool get isEditing => widget.existingEntry != null;
+  late Set<int> _selectedDays;
+  late bool _isReminderActive;
+
+  static const List<String> _weekdayLabels = [
+    'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So',
+  ];
 
   @override
   void initState() {
     super.initState();
     final entry = widget.existingEntry;
+    _selectedDays = (entry?.selectedDays ?? const [1, 2, 3, 4, 5, 6, 7])
+        .where((day) => day >= 1 && day <= 7)
+        .toSet();
+    _isReminderActive = entry?.isReminderActive ?? true;
     _nameCtrl = TextEditingController(text: isEditing ? entry!.drugName : widget.prefilledName);
     _dosageCtrl = TextEditingController(text: isEditing ? entry!.dosage : widget.prefilledDosage);
     _timeCtrl = TextEditingController(text: isEditing ? entry!.time : '08:00');
@@ -573,6 +592,13 @@ class _AddEditMedicationDialogState extends State<_AddEditMedicationDialog> {
       return;
     }
 
+    if (_isReminderActive && _selectedDays.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Bitte mindestens einen Wochentag auswählen.')),
+      );
+      return;
+    }
+
     try {
       final existing = widget.existingEntry;
       final entryToSave = MedPlanEntry(
@@ -582,20 +608,19 @@ class _AddEditMedicationDialogState extends State<_AddEditMedicationDialog> {
         time: _timeCtrl.text.trim().isEmpty ? '08:00' : _timeCtrl.text.trim(),
         instructions: _instructionsCtrl.text.trim(),
         isActive: isEditing ? existing!.isActive : true,
-        isReminderActive: isEditing ? existing!.isReminderActive : true,
-        selectedDays: isEditing
-            ? existing!.selectedDays
-            : const [1, 2, 3, 4, 5, 6, 7],
-        stockCount: int.tryParse(_stockCtrl.text.trim()) ?? 0,
+        isReminderActive: _isReminderActive,
+        selectedDays: _selectedDays.toList()..sort(),
+        stockCount: (int.tryParse(_stockCtrl.text.trim()) ?? 0).clamp(0, 1000000).toInt(),
         takenToday: isEditing ? existing!.takenToday : false,
       );
 
+      late final MedPlanEntry savedEntry;
       if (isEditing) {
         await DatabaseService.instance.updateMedPlanEntry(entryToSave);
-        await NotificationService.instance.scheduleMedicationReminder(entryToSave);
+        savedEntry = entryToSave;
       } else {
         final id = await DatabaseService.instance.insertMedPlanEntry(entryToSave);
-        final savedEntry = MedPlanEntry(
+        savedEntry = MedPlanEntry(
           id: id,
           drugName: entryToSave.drugName,
           dosage: entryToSave.dosage,
@@ -607,27 +632,37 @@ class _AddEditMedicationDialogState extends State<_AddEditMedicationDialog> {
           stockCount: entryToSave.stockCount,
           takenToday: entryToSave.takenToday,
         );
+      }
+
+      String? reminderError;
+      try {
         await NotificationService.instance.scheduleMedicationReminder(savedEntry);
+      } catch (error) {
+        reminderError = error.toString();
       }
 
       if (!mounted) return;
 
-      // Dialog schließen und Medikationsliste aktualisieren
       Navigator.of(context).pop();
       widget.onSaved();
 
-      // SnackBar auf dem Hauptbildschirm anzeigen
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            isEditing ? '$drugName aktualisiert!' : '$drugName gespeichert!',
+            reminderError == null
+                ? (isEditing ? '$drugName aktualisiert!' : '$drugName gespeichert!')
+                : '$drugName gespeichert, aber die Erinnerung konnte nicht eingerichtet werden. Bitte Berechtigungen prüfen.',
           ),
+          duration: const Duration(seconds: 5),
         ),
       );
-    } catch (e) {
+      if (reminderError != null) {
+        debugPrint('Erinnerung für $drugName nicht eingerichtet: $reminderError');
+      }
+    } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Fehler beim Speichern: $e')),
+        SnackBar(content: Text('Fehler beim Speichern: $error')),
       );
     }
   }
@@ -675,6 +710,41 @@ class _AddEditMedicationDialogState extends State<_AddEditMedicationDialog> {
                   });
                 }
               },
+            ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Erinnerungen aktivieren'),
+              value: _isReminderActive,
+              onChanged: (value) => setState(() => _isReminderActive = value),
+            ),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Padding(
+                padding: const EdgeInsets.only(top: 16, bottom: 4),
+                child: Text(
+                  'Erinnerung an diesen Tagen',
+                  style: Theme.of(context).textTheme.labelLarge,
+                ),
+              ),
+            ),
+            Wrap(
+              spacing: 4,
+              children: List<Widget>.generate(7, (index) {
+                final weekday = index + 1;
+                return FilterChip(
+                  label: Text(_weekdayLabels[index]),
+                  selected: _selectedDays.contains(weekday),
+                  onSelected: (selected) {
+                    setState(() {
+                      if (selected) {
+                        _selectedDays.add(weekday);
+                      } else {
+                        _selectedDays.remove(weekday);
+                      }
+                    });
+                  },
+                );
+              }),
             ),
             TextField(
               controller: _instructionsCtrl,

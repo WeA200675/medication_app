@@ -9,8 +9,8 @@ class MedPlanEntry {
   final bool isActive;
   final bool isReminderActive;
   final List<int> selectedDays; // 1 = Montag, 7 = Sonntag
-  final int stockCount; // Aktueller Vorrat in Stück
-  final bool takenToday; // Ob heute bereits eingenommen
+  final int stockCount;
+  final bool takenToday;
 
   MedPlanEntry({
     this.id,
@@ -23,7 +23,11 @@ class MedPlanEntry {
     List<int>? selectedDays,
     this.stockCount = 0,
     this.takenToday = false,
-  }) : selectedDays = selectedDays ?? [1, 2, 3, 4, 5, 6, 7];
+  }) : selectedDays = (selectedDays ?? const [1, 2, 3, 4, 5, 6, 7])
+            .where((day) => day >= 1 && day <= 7)
+            .toSet()
+            .toList()
+          ..sort();
 
   Map<String, dynamic> toMap() {
     return {
@@ -41,27 +45,45 @@ class MedPlanEntry {
   }
 
   factory MedPlanEntry.fromMap(Map<String, dynamic> map) {
-    List<int> parsedDays = [1, 2, 3, 4, 5, 6, 7];
-    if (map['selectedDays'] != null) {
+    var parsedDays = <int>[];
+    var parsedDaysSuccessfully = false;
+    final rawDays = map['selectedDays'];
+    if (rawDays is String && rawDays.isNotEmpty) {
       try {
-        final decoded = jsonDecode(map['selectedDays']);
+        final decoded = jsonDecode(rawDays);
         if (decoded is List) {
-          parsedDays = decoded.map((e) => e as int).toList();
+          parsedDaysSuccessfully = true;
+          parsedDays = decoded.whereType<int>()
+              .where((day) => day >= 1 && day <= 7)
+              .toSet()
+              .toList()
+            ..sort();
         }
-      } catch (_) {}
+      } on FormatException {
+        // Older or damaged rows fall back to the historical daily schedule.
+      }
+    }
+    if (!parsedDaysSuccessfully) {
+      parsedDays = [1, 2, 3, 4, 5, 6, 7];
     }
 
+    final rawId = map['id'];
+    final rawStockCount = map['stockCount'];
+    final active = map['isActive'] ?? 1;
+    final reminderActive = map['isReminderActive'] ?? 1;
+    final taken = map['takenToday'];
+
     return MedPlanEntry(
-      id: map['id'] as int?,
-      drugName: map['drugName'] ?? '',
-      dosage: map['dosage'] ?? '',
-      time: map['time'] ?? '08:00',
-      instructions: map['instructions'] ?? '',
-      isActive: (map['isActive'] ?? 1) == 1,
-      isReminderActive: (map['isReminderActive'] ?? 1) == 1,
+      id: rawId is int ? rawId : int.tryParse(rawId?.toString() ?? ''),
+      drugName: map['drugName']?.toString() ?? '',
+      dosage: map['dosage']?.toString() ?? '',
+      time: map['time']?.toString() ?? '08:00',
+      instructions: map['instructions']?.toString() ?? '',
+      isActive: active == true || active == 1,
+      isReminderActive: reminderActive == true || reminderActive == 1,
       selectedDays: parsedDays,
-      stockCount: map['stockCount'] ?? 0,
-      takenToday: (map['takenToday'] ?? 0) == 1,
+      stockCount: rawStockCount is int ? rawStockCount : int.tryParse(rawStockCount?.toString() ?? '') ?? 0,
+      takenToday: taken == true || taken == 1,
     );
   }
 }
