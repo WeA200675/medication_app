@@ -29,6 +29,12 @@ jobs:
           cache: true
       - name: Resolve dependencies
         run: flutter pub get
+      - name: Archive resolved dependency lock
+        uses: actions/upload-artifact@v4
+        with:
+          name: resolved-pubspec-lock
+          path: pubspec.lock
+          retention-days: 1
       - name: Analyze
         run: flutter analyze --no-fatal-warnings --no-fatal-infos
       - name: Run tests
