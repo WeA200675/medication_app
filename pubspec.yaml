@@ -14,6 +14,7 @@ dependencies:
   shared_preferences: ^2.2.2
   flutter_secure_storage: ^10.3.4
   cryptography: ^2.9.0
+  cryptography_flutter: ^2.3.4
 
   # Datenbank & Datei-Speicher
   sqflite_sqlcipher: ^3.4.1

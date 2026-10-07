@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:cryptography_flutter/cryptography_flutter.dart';
 import 'screens/med_plan_screen.dart';
 import 'screens/doctors_screen.dart';
 import 'screens/profile_screen.dart';
@@ -12,6 +13,7 @@ import 'services/ocr_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  FlutterCryptography.enable();
   await NotificationService.instance.init();
   runApp(const MedicationApp());
 }
