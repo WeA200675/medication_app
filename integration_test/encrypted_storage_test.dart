@@ -68,7 +68,7 @@ void main() {
     final headerHandle = await File(databasePath).open();
     final header = await headerHandle.read(16);
     await headerHandle.close();
-    expect(ascii.decode(header, allowInvalid: true), isNot('SQLite format 3\\u0000'));
+    expect(ascii.decode(header, allowInvalid: true), isNot('SQLite format 3\u0000'));
 
     final legacyPrefs = await SharedPreferences.getInstance();
     await legacyPrefs.setString('user_name', 'Legacy Profile');
