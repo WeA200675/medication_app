@@ -15,6 +15,7 @@ class NotificationService {
       FlutterLocalNotificationsPlugin();
 
   static const int _weekdayIdMultiplier = 10;
+  static const int _notificationIdNamespace = 1000000000;
 
   Future<void> init() async {
     tz_data.initializeTimeZones();
@@ -134,7 +135,7 @@ class NotificationService {
   }
 
   int _notificationId(int medicationId, int weekday) =>
-      medicationId * _weekdayIdMultiplier + weekday;
+      _notificationIdNamespace + medicationId * _weekdayIdMultiplier + weekday;
 
   Future<void> cancelNotification(int id) async {
     await _notificationsPlugin.cancel(id);
