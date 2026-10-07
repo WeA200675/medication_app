@@ -583,7 +583,7 @@ class _AddEditMedicationDialogState extends State<_AddEditMedicationDialog> {
       return;
     }
 
-    if (_selectedDays.isEmpty) {
+    if (_isReminderActive && _selectedDays.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Bitte mindestens einen Wochentag auswählen.')),
       );
@@ -601,16 +601,17 @@ class _AddEditMedicationDialogState extends State<_AddEditMedicationDialog> {
         isActive: isEditing ? existing!.isActive : true,
         isReminderActive: _isReminderActive,
         selectedDays: _selectedDays.toList()..sort(),
-        stockCount: int.tryParse(_stockCtrl.text.trim()) ?? 0,
+        stockCount: (int.tryParse(_stockCtrl.text.trim()) ?? 0).clamp(0, 1000000),
         takenToday: isEditing ? existing!.takenToday : false,
       );
 
+      late final MedPlanEntry savedEntry;
       if (isEditing) {
         await DatabaseService.instance.updateMedPlanEntry(entryToSave);
-        await NotificationService.instance.scheduleMedicationReminder(entryToSave);
+        savedEntry = entryToSave;
       } else {
         final id = await DatabaseService.instance.insertMedPlanEntry(entryToSave);
-        final savedEntry = MedPlanEntry(
+        savedEntry = MedPlanEntry(
           id: id,
           drugName: entryToSave.drugName,
           dosage: entryToSave.dosage,
@@ -622,27 +623,37 @@ class _AddEditMedicationDialogState extends State<_AddEditMedicationDialog> {
           stockCount: entryToSave.stockCount,
           takenToday: entryToSave.takenToday,
         );
+      }
+
+      String? reminderError;
+      try {
         await NotificationService.instance.scheduleMedicationReminder(savedEntry);
+      } catch (error) {
+        reminderError = error.toString();
       }
 
       if (!mounted) return;
 
-      // Dialog schließen und Medikationsliste aktualisieren
       Navigator.of(context).pop();
       widget.onSaved();
 
-      // SnackBar auf dem Hauptbildschirm anzeigen
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            isEditing ? '$drugName aktualisiert!' : '$drugName gespeichert!',
+            reminderError == null
+                ? (isEditing ? '$drugName aktualisiert!' : '$drugName gespeichert!')
+                : '$drugName gespeichert, aber die Erinnerung konnte nicht eingerichtet werden. Bitte Berechtigungen prüfen.',
           ),
+          duration: const Duration(seconds: 5),
         ),
       );
-    } catch (e) {
+      if (reminderError != null) {
+        debugPrint('Erinnerung für $drugName nicht eingerichtet: $reminderError');
+      }
+    } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Fehler beim Speichern: $e')),
+        SnackBar(content: Text('Fehler beim Speichern: $error')),
       );
     }
   }
